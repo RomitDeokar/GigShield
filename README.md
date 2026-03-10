@@ -83,7 +83,7 @@ Typical Profile:
 
 **Scenario 5 — Fraud Attempt (Blocked)**
 
-> Vikram tries to claim during a rainfall event. His GPS shows him 8 km outside the zone with zero deliveries in the last 30 minutes. Fraud score: 0.25 (below 0.75 threshold). Admin console shows: ❌ GPS outside zone ·  Not active ·  No duplicate ·  App logged in. Payout blocked.
+> Vikram tries to claim during a rainfall event. His GPS shows him 8 km outside the zone with zero deliveries in the last 30 minutes. Fraud score: 0.25 (below 0.75 threshold). Admin console shows:  GPS outside zone ·  Not active ·  No duplicate ·  App logged in. Payout blocked.
 
 ---
 
@@ -242,7 +242,7 @@ Worker sees on policy screen: *"Zone risk score: 0.74 — Premium adjusted to �
 | Heavy Rain | Rainfall mm/hr | OpenWeatherMap API | > 15 mm/hr | 10 min |
 | Extreme Heat | Temperature °C | OpenWeatherMap API | > 43°C | 10 min |
 | Severe AQI | Air Quality Index | WAQI API (free) | > 300 | 10 min |
-| Flash Flood Alert | IMD-style alert | Mocked JSON feed | Alert issued | Instant |
+| Flash Flood Alert | IMD-style alert | IMD Flood Warning System API (mocked in demo; production uses IMD webhook integration) | Alert issued | Instant |
 | Dark Store Closure | Platform signal | Simulated API | Closure flag | Instant |
 | Local Curfew | Govt alert | Mocked event trigger | Curfew issued | Instant |
 
@@ -348,7 +348,7 @@ The **Return on Protection** metric reframes insurance as an investment. Workers
 | Renew without lapsing | +75 pts | Per streak week |
 | 4-week no-lapse streak | +300 pts | Milestone bonus |
 | 12-week streak | +1,000 pts | Champion milestone |
-| Refer a zone partner | +500 pts | Per confirmed referral |
+| Refer a zone partner | +500 pts | Per confirmed referral (verified by platform zone ID — fake accounts blocked) |
 | Complete profile | +100 pts | One-time only |
 
 **Points are NOT earned for:** lapsed weeks, pending fraud review periods.
@@ -614,7 +614,69 @@ The same React codebase serves the mobile worker (card UI, large touch targets) 
 
 ---
 
+## 12. Risk Management & Reinsurance Model
+
+### Loss Ratio Targets
+
+GigShield targets a **sustainable loss ratio of 0.60–0.80** during off-season and mitigates peak-season exposure through a structured reinsurance layer.
+
+```
+Off-Season (Oct–May):    Loss Ratio ~0.16  →  Highly profitable baseline
+Monsoon Season (Jun–Sep): Loss Ratio ~2.27  →  Reinsurance activated above 1.5x
+```
+
+### Reinsurance Layer
+
+- **Structure:** Quota-share treaty — reinsurer covers 70% of claims when zone loss ratio exceeds 1.5×
+- **Example:**
+  ```
+  Weekly premium pool:          ₹99,000  (1,000 workers × ₹99 avg)
+  Reinsurance trigger:          ₹148,500 (1.5× the premium pool)
+  Claims above threshold:       Reinsurer absorbs 70%
+  GigShield net exposure cap:   ₹44,550/week in worst-case monsoon scenario
+  ```
+
+### Monsoon Surge Pricing
+
+- Premiums adjust **+40% during Jun–Sep** to pre-fund seasonal claim exposure
+- Example: Pro Shield ₹99/week → ₹138/week during monsoon (risk-score adjusted separately on top)
+
+### Zone Exposure Cap
+
+- Maximum **500 covered workers per zone** to prevent single-zone catastrophic payout concentration
+- Zones approaching cap trigger waitlist + priority invite for adjacent zones
+
+### Adverse Selection Defense
+
+The biggest structural risk in parametric income insurance is adverse selection — only workers in the highest-risk zones buying policies, making premiums unsustainable. GigShield combats this on three fronts:
+
+1. **Zone-level dynamic pricing** — risky zones pay higher premiums, not a flat city-wide rate
+2. **Group enrollment incentive** — the Zone Milestone (20+ workers → ₹20 cashback) pulls in low-risk workers alongside high-risk ones, widening the risk pool
+3. **Weekly commitment model** — workers must renew every week; high-risk zone workers cannot selectively buy only during monsoon week without paying off-season premiums via streak continuity incentives
+
+### Fraud Rate Target
+
+GigShield targets **< 5% fraudulent claim rate** through the 4-check explainable fraud scoring system (GPS zone validation, activity check, session check, duplicate prevention).
+
+---
+
 ## 13. Business Viability
+
+### Why Now
+
+India's Q-Commerce sector has grown **300%+ since 2022**. Zepto alone operates 300+ dark stores across 10 cities. Blinkit has surpassed 1,000 dark stores nationally. These workers number in the **hundreds of thousands** — all zone-locked, all uninsured against disruptions. The 2025–2026 window is the critical moment to build this before platforms like Zepto or Blinkit develop in-house worker protection products that would lock out third-party insurers. **The gap exists now. It won't exist in 3 years.**
+
+### Competitive Landscape
+
+| Player | Coverage Type | Trigger Type | Payout Speed | Pricing Cycle | Gig-Specific |
+|---|---|---|---|---|---|
+| Toffee Insurance | Health / Accident | Manual claim | Days–Weeks | Monthly | No |
+| Kover (Acko) | Vehicle / Health | Manual claim | Days | Monthly | Partial |
+| Onsurity | Group Health | Manual claim | Weeks | Monthly | No |
+| Plum Insurance | Group Health | Manual claim | Weeks | Monthly | No |
+| **GigShield** | **Income only** | **Parametric / Auto** | **< 60 seconds** | **Weekly** | **Yes — micro-zone** |
+
+**Key differentiator:** Every existing player covers health, vehicle, or life — products that require manual claims and city-level assessment. No player offers **parametric, automatic, micro-zone income protection on a weekly cycle**. GigShield is not competing with these players — it is creating a new product category.
 
 ### Unit Economics — 1,000 Workers, Bangalore
 
@@ -624,8 +686,9 @@ Weekly Premium Pool:
 
 Monsoon Season (Jun–Sep):
   ~3 events/week × 150 workers affected × ₹500 avg payout
-  = ₹2,25,000/week in payouts
-  Loss Ratio = 2.27  →  Reinsurance covers above 1.5x
+  = ₹2,25,000/week gross claims
+  Loss Ratio = 2.27  →  Reinsurer absorbs 70% above 1.5× threshold
+  GigShield net payout:  ₹44,550/week  →  Net Loss Ratio: 0.45
 
 Off-Season (Oct–May):
   ~0.8 events/week × 40 workers affected × ₹500 avg payout
@@ -641,11 +704,33 @@ Annual Per-Worker Economics:
 ### Sustainability Strategy
 
 - **Dynamic surge pricing** during monsoon season (+40% premium uplift)
-- **Reinsurance layer** covers loss ratios above 1.5x
+- **Reinsurance layer** covers loss ratios above 1.5x — net exposure capped at ₹44,550/week per 1,000-worker zone
 - **Zone-level risk differentiation** prevents adverse selection — risky zones priced higher
 - **GigPoints loyalty** reduces churn — Champion-tier workers target 85%+ renewal rate
 - **Referral + group enrollment** grows the risk pool organically within zones
 - **Fraud detection** targets < 5% fraudulent claim rate
+
+### Regulatory Framework
+
+GigShield would operate as a **Parametric Insurance Product under IRDAI's Regulatory Sandbox framework (IRDAI Regulatory Sandbox Guidelines, 2019)**. In production:
+
+- Premium collection is routed through a **licensed insurer partner** (e.g., Digit Insurance, Acko, or Go Digit — all of whom have active IRDAI sandbox approvals for innovative products)
+- GigShield acts as the **technology and distribution layer** (Insurance Marketing Firm or Web Aggregator license under IRDAI)
+- Parametric triggers and payout logic are disclosed in the policy wordings filed with IRDAI
+- Worker consent and KYC collected at onboarding per IRDAI / AML guidelines
+
+*For the purposes of DEVTrails 2026, all financial flows are simulated. Razorpay test mode is used for mock payouts. No real insurance contracts are issued.*
+
+### Expansion Roadmap
+
+| Phase | Timeline | Cities | Primary Trigger Focus |
+|---|---|---|---|
+| Phase 1 (Hackathon) | Mar 2026 | Bangalore (5 zones) | Rainfall + AQI |
+| Phase 2 (Post-Hackathon) | Q3 2026 | + Delhi NCR | AQI-primary (winter smog) |
+| Phase 3 (Scale) | Q1 2027 | + Mumbai | Rainfall-primary (monsoon flooding) |
+| Phase 4 (National) | Q3 2027 | 10 cities, 50+ zones | Full trigger suite + IMD integration |
+
+Delhi NCR expansion unlocks the **AQI-primary trigger market** — 1,000+ AQI days in winter make it the single highest-value disruption trigger in India. Mumbai expansion targets **coastal flood and extreme rainfall** — a different risk profile that diversifies the reinsurance pool.
 
 ---
 
@@ -671,6 +756,3 @@ Annual Per-Worker Economics:
 - **Figma Wireframes:** [Link to be added]
 
 ---
-> *Built for Guidewire DEVTrails 2026 — Unicorn Chase*
->
-> *"Build fast. Spend smart. Don't go broke. Happy Hacking."*
