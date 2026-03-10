@@ -734,9 +734,7 @@ Delhi NCR expansion unlocks the **AQI-primary trigger market** — 1,000+ AQI da
 
 ---
 
----
-
-## 15. Team
+## 14. Team
 
 | Name | Role |
 |---|---|
